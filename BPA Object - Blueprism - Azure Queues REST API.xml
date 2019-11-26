@@ -23,6 +23,14 @@
       <zoom version="2">1.25</zoom>
     </view>
   </subsheet>
+  <subsheet subsheetid="8aa2532a-c155-488b-b30a-94c5456e5ac4" type="Normal" published="True">
+    <name>Preflight CORS Request</name>
+    <view>
+      <camerax>-209</camerax>
+      <cameray>5</cameray>
+      <zoom version="2">1.25</zoom>
+    </view>
+  </subsheet>
   <subsheet subsheetid="09aa4686-20b5-4ca8-8518-afa3b1abb2d6" type="Normal" published="True">
     <name>Retrieve Messages</name>
     <view>
@@ -1015,5 +1023,206 @@ catch(Exception ex)
 	success = false;
 	result = ex.Message;
 }]]></code>
+  </stage>
+  <stage stageid="d7e26eff-7c91-4701-82f4-10c320b2513e" name="Preflight CORS Request" type="SubSheetInfo">
+    <subsheetid>8aa2532a-c155-488b-b30a-94c5456e5ac4</subsheetid>
+    <narrative>Queries the Cross-Origin Resource Sharing (CORS) rules for the Queue service prior to sending the actual request.</narrative>
+    <display x="-285" y="-105" w="330" h="90" />
+  </stage>
+  <stage stageid="d89f9b22-35e8-4419-b871-8f1306c06c0a" name="Success" type="Data">
+    <subsheetid>8aa2532a-c155-488b-b30a-94c5456e5ac4</subsheetid>
+    <display x="-195" y="-15" w="120" h="30" />
+    <datatype>flag</datatype>
+    <initialvalue />
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="1107eeda-1453-432d-a444-1bd200ce94cf" name="Result" type="Data">
+    <subsheetid>8aa2532a-c155-488b-b30a-94c5456e5ac4</subsheetid>
+    <display x="-195" y="15" w="120" h="30" />
+    <datatype>text</datatype>
+    <initialvalue />
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="576474b8-141d-448c-a33f-4ef1a444ef6f" name="Input Data Items" type="Block">
+    <subsheetid>8aa2532a-c155-488b-b30a-94c5456e5ac4</subsheetid>
+    <loginhibit />
+    <display x="-450" y="-45" w="150" h="180" />
+    <font family="Segoe UI" size="10" style="Regular" color="FFCC00" />
+  </stage>
+  <stage stageid="e26cfe40-62d1-42dc-81d1-061df81d4bb4" name="Output Data Items" type="Block">
+    <subsheetid>8aa2532a-c155-488b-b30a-94c5456e5ac4</subsheetid>
+    <loginhibit />
+    <display x="-270" y="-45" w="150" h="180" />
+    <font family="Segoe UI" size="10" style="Regular" color="800000" />
+  </stage>
+  <stage stageid="2f45db7b-25fa-45a4-9a3d-7f1dbc675fbc" name="Start" type="Start">
+    <subsheetid>8aa2532a-c155-488b-b30a-94c5456e5ac4</subsheetid>
+    <loginhibit />
+    <display x="-15" y="-135" />
+    <inputs>
+      <input type="text" name="Queue Name" narrative="The name of the Azure Queue" stage="Queue Name" />
+      <input type="text" name="Storage Account Name" narrative="The name of the Azure storage account that the Azure Queue belongs to" stage="Storage Account Name" />
+      <input type="text" name="Origin" narrative="Required. Specifies the origin from which the actual request will be issued. The origin is checked against the service's CORS rules to determine the success or failure of the preflight request." stage="Origin" />
+      <input type="text" name="Access Control Request Method" narrative="Required. Specifies the method (or HTTP verb) for the actual request. The method is checked against the service's CORS rules to determine the failure or success of the preflight request." stage="Access Control Request Method" />
+    </inputs>
+    <onsuccess>906d95db-b81a-43d5-939e-34ca20baafc3</onsuccess>
+  </stage>
+  <stage stageid="26735e3f-baa4-40e1-95d1-c04d47a1e3ed" name="Queue Name" type="Data">
+    <subsheetid>8aa2532a-c155-488b-b30a-94c5456e5ac4</subsheetid>
+    <display x="-375" y="15" w="120" h="30" />
+    <datatype>text</datatype>
+    <initialvalue />
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="4cb0f3bf-9117-4ef0-a771-51214603fb3d" name="Storage Account Name" type="Data">
+    <subsheetid>8aa2532a-c155-488b-b30a-94c5456e5ac4</subsheetid>
+    <display x="-375" y="-15" w="120" h="30" />
+    <datatype>text</datatype>
+    <initialvalue />
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="906d95db-b81a-43d5-939e-34ca20baafc3" name="Execute Preflight CORS Request" type="Code">
+    <subsheetid>8aa2532a-c155-488b-b30a-94c5456e5ac4</subsheetid>
+    <loginhibit />
+    <display x="-15" y="-60" w="90" h="60" />
+    <inputs>
+      <input type="text" name="queueName" expr="[Queue Name]" />
+      <input type="text" name="storageAccountName" expr="[Storage Account Name]" />
+      <input type="text" name="origin" expr="[Origin]" />
+      <input type="text" name="requestMethod" expr="[Access Control Request Method]" />
+    </inputs>
+    <outputs>
+      <output type="flag" name="success" stage="Success" />
+      <output type="text" name="result" stage="Result" />
+      <output type="collection" name="responseHeaders" stage="Response Headers" />
+      <output type="text" name="httpStatusCode" stage="HTTP Status Code" />
+      <output type="text" name="responseContent" stage="Response Content" />
+    </outputs>
+    <onsuccess>e0c4a4d3-abcc-482f-96ed-359bd2f7ff89</onsuccess>
+    <code><![CDATA[success = true;
+result = string.Empty;
+httpStatusCode = string.Empty;
+responseContent = string.Empty;
+// prep the responseHeaders structure
+responseHeaders = new DataTable();
+responseHeaders.Columns.AddRange(GetResponseHeaderColumns());
+
+try
+{
+	// construct the uri and create the webRequest object
+	string queueServiceEndpoint = string.Format("https://{0}.queue.core.windows.net/{1}", storageAccountName, queueName);
+	HttpWebRequest webRequest = (HttpWebRequest)WebRequest.Create(queueServiceEndpoint);
+	webRequest.Method = "OPTIONS";
+	webRequest.Headers.Add("Origin", origin);
+	webRequest.Headers.Add("Access-Control-Request-Method", requestMethod);
+	
+	// get the response from the webRequest and process it
+	using (HttpWebResponse response = (HttpWebResponse)webRequest.GetResponse())
+	{
+		// grab the http status code
+		httpStatusCode = string.Format("{0} - {1}", ((int)response.StatusCode).ToString(), response.StatusCode.ToString());
+
+		// load up the responseHeaders
+		foreach (string k in response.Headers.Keys)
+		{
+			DataRow row = responseHeaders.NewRow();
+			row["Header"] = k;
+			row["Value"] = response.Headers.Get(k);
+			responseHeaders.Rows.Add(row);
+		}
+
+		using (var sr = new StreamReader(response.GetResponseStream()))
+		{
+			// read in the response stream
+			responseContent = sr.ReadToEnd();
+			success = true;
+		}
+	}
+}
+catch (WebException wex)
+{
+	result = wex.Message;
+	success = false;
+
+	// grab the http status code
+	httpStatusCode = string.Format("{0} - {1}", ((int)((HttpWebResponse)wex.Response).StatusCode).ToString(), ((HttpWebResponse)wex.Response).StatusDescription);
+
+	// load up the responseHeaders
+	foreach (string k in wex.Response.Headers.Keys)
+	{
+		DataRow row = responseHeaders.NewRow();
+		row["Header"] = k;
+		row["Value"] = wex.Response.Headers.Get(k);
+		responseHeaders.Rows.Add(row);
+	}
+
+	using (var sr = new StreamReader(wex.Response.GetResponseStream()))
+	{
+		// read in the response stream
+		responseContent = sr.ReadToEnd();
+	}
+
+}
+catch (Exception ex)
+{
+	result = ex.Message;
+	success = false;
+}
+]]></code>
+  </stage>
+  <stage stageid="391a72f7-9036-4634-94f8-7ae49b2edf5b" name="Response Headers" type="Collection">
+    <subsheetid>8aa2532a-c155-488b-b30a-94c5456e5ac4</subsheetid>
+    <display x="-195" y="75" w="120" h="30" />
+    <datatype>collection</datatype>
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="727bde1f-062d-4ab5-904a-9cc79f99ee91" name="HTTP Status Code" type="Data">
+    <subsheetid>8aa2532a-c155-488b-b30a-94c5456e5ac4</subsheetid>
+    <display x="-195" y="45" w="120" h="30" />
+    <datatype>text</datatype>
+    <initialvalue />
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="b4b12e2c-bf2a-4296-a1a1-ba458cb4311c" name="Response Content" type="Data">
+    <subsheetid>8aa2532a-c155-488b-b30a-94c5456e5ac4</subsheetid>
+    <display x="-195" y="105" w="120" h="30" />
+    <datatype>text</datatype>
+    <initialvalue />
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="e0c4a4d3-abcc-482f-96ed-359bd2f7ff89" name="End" type="End">
+    <subsheetid>8aa2532a-c155-488b-b30a-94c5456e5ac4</subsheetid>
+    <loginhibit />
+    <display x="-15" y="15" />
+    <outputs>
+      <output type="flag" name="Success" narrative="Flag to indicate success of this action" stage="Success" />
+      <output type="text" name="Result" narrative="If an error occrus, this output will contain text describing result of this action" stage="Result" />
+      <output type="text" name="HTTP Status Code" narrative="HTTP status code of the request made to the REST API endpoint" stage="HTTP Status Code" />
+      <output type="collection" name="Response Headers" narrative="Collection of the response headers from the request made to the REST API endpoint" stage="Response Headers" />
+      <output type="text" name="Response Content" narrative="The raw response from the request made to the REST API endpoint" stage="Response Content" />
+    </outputs>
+  </stage>
+  <stage stageid="6d49a007-d4fc-43cf-b0e4-45ee288aaf9a" name="Origin" type="Data">
+    <subsheetid>8aa2532a-c155-488b-b30a-94c5456e5ac4</subsheetid>
+    <display x="-375" y="45" w="120" h="30" />
+    <datatype>text</datatype>
+    <initialvalue />
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="dd1ab164-757a-45e2-9785-eae3f3763551" name="Access Control Request Method" type="Data">
+    <subsheetid>8aa2532a-c155-488b-b30a-94c5456e5ac4</subsheetid>
+    <display x="-375" y="75" w="120" h="30" />
+    <datatype>text</datatype>
+    <initialvalue />
+    <private />
+    <alwaysinit />
   </stage>
 </process>
