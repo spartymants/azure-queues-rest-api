@@ -1,0 +1,1019 @@
+﻿<process name="Blueprism - Azure Queues REST API" version="1.0" bpversion="6.6.0.15260" narrative="This VBO provides a mechanism for interacting with Azure Queues via their exposed REST API. It includes actions for adding, retrieving, and deleting messages." byrefcollection="true" type="object" runmode="Exclusive" preferredid="98f99a73-e4ef-4b02-bb98-5f26efed1394">
+  <appdef>
+    <element name="Application Root">
+      <id>713bbf00-c707-4331-989e-aae0d7f2101a</id>
+      <type>Application</type>
+      <basetype>Application</basetype>
+      <datatype>unknown</datatype>
+      <diagnose>False</diagnose>
+    </element>
+  </appdef>
+  <view>
+    <camerax>0</camerax>
+    <cameray>0</cameray>
+    <zoom version="2">1.25</zoom>
+  </view>
+  <preconditions />
+  <endpoint narrative="" />
+  <subsheet subsheetid="f28de15f-cbad-406e-a77c-008151521aa2" type="CleanUp" published="True">
+    <name>Clean Up</name>
+    <view>
+      <camerax>0</camerax>
+      <cameray>0</cameray>
+      <zoom version="2">1.25</zoom>
+    </view>
+  </subsheet>
+  <subsheet subsheetid="09aa4686-20b5-4ca8-8518-afa3b1abb2d6" type="Normal" published="True">
+    <name>Retrieve Messages</name>
+    <view>
+      <camerax>-185</camerax>
+      <cameray>143</cameray>
+      <zoom version="2">1.25</zoom>
+    </view>
+  </subsheet>
+  <subsheet subsheetid="49f72b25-56d2-414c-a007-e2a3f340c57f" type="Normal" published="True">
+    <name>Retrieve Next Message</name>
+    <view>
+      <camerax>-174</camerax>
+      <cameray>84</cameray>
+      <zoom version="2">1.25</zoom>
+    </view>
+  </subsheet>
+  <subsheet subsheetid="11c02554-dac4-4810-8cda-3db68ce8d47b" type="Normal" published="True">
+    <name>Add Message</name>
+    <view>
+      <camerax>-182</camerax>
+      <cameray>71</cameray>
+      <zoom version="2">1.25</zoom>
+    </view>
+  </subsheet>
+  <subsheet subsheetid="a8fafe28-6848-4797-89f4-268ef196c723" type="Normal" published="True">
+    <name>Delete Message</name>
+    <view>
+      <camerax>-209</camerax>
+      <cameray>89</cameray>
+      <zoom version="2">1.25</zoom>
+    </view>
+  </subsheet>
+  <stage stageid="773d4ed6-fc82-4543-932a-8e076d7e9090" name="Start" type="Start">
+    <loginhibit />
+    <display x="15" y="-105" />
+    <onsuccess>584ee30d-b889-4ac6-bd01-9c31dbeeffbe</onsuccess>
+  </stage>
+  <stage stageid="584ee30d-b889-4ac6-bd01-9c31dbeeffbe" name="End" type="End">
+    <loginhibit />
+    <display x="15" y="90" />
+  </stage>
+  <stage stageid="18a99a3f-d5eb-40cb-8ca5-0206af5f7993" name="Stage1" type="ProcessInfo">
+    <display x="-180" y="-105" w="180" h="90" />
+    <references>
+      <reference>System.dll</reference>
+      <reference>System.Data.dll</reference>
+      <reference>System.Xml.dll</reference>
+      <reference>System.Drawing.dll</reference>
+      <reference>System.Core.dll</reference>
+      <reference>System.Xml.Linq.dll</reference>
+      <reference>System.Net.Http.dll</reference>
+      <reference>System.Web.dll</reference>
+    </references>
+    <imports>
+      <import>System</import>
+      <import>System.Drawing</import>
+      <import>System.Data</import>
+      <import>System.Collections.Generic</import>
+      <import>System.Linq</import>
+      <import>System.Collections.Specialized</import>
+      <import>System.Globalization</import>
+      <import>System.IO</import>
+      <import>System.Net</import>
+      <import>System.Security.Cryptography</import>
+      <import>System.Text</import>
+      <import>System.Xml.Linq</import>
+    </imports>
+    <language>csharp</language>
+    <globalcode><![CDATA[]]></globalcode>
+    <code><![CDATA[public DataColumn[] GetOutputDataColumns()
+{
+	return new DataColumn[]
+		{
+			new DataColumn("MessageId", typeof(string)),
+			new DataColumn("MessageText", typeof(string)),
+			new DataColumn("PopReceipt", typeof(string)),
+			new DataColumn("DequeueCount", typeof(string)),
+			new DataColumn("InsertionTime", typeof(string)),
+			new DataColumn("ExpirationTime", typeof(string)),
+			new DataColumn("TimeNextVisible", typeof(string))
+		};
+}
+
+public DataColumn[] GetResponseHeaderColumns()
+{
+	return new DataColumn[]
+		{
+			new DataColumn("Header", typeof(string)),
+			new DataColumn("Value", typeof(string))
+		};
+}
+
+public HttpWebRequest GetWebRequest(string verb, string storageAccountName, string storageKey, string queueServiceEndpoint)
+{
+	// 1. construct HttpWebRequest including any payload if required
+	var webRequest = (HttpWebRequest)WebRequest.Create(queueServiceEndpoint);
+	webRequest.Method = verb;
+	DateTime stamp = DateTime.UtcNow;
+	webRequest.Headers.Add("x-ms-date", stamp.ToString("R", CultureInfo.InvariantCulture));
+	webRequest.Headers.Add("x-ms-version", "2019-02-02");
+
+	// 2. construct auth header and add to request
+	webRequest.Headers.Add(HttpRequestHeader.Authorization, GetAuthorizationHeaderValue(storageAccountName, storageKey, stamp, webRequest));
+	return webRequest;
+}
+
+private string GetAuthorizationHeaderValue(string storageAccountName, string storageAccountKey, DateTime stamp, HttpWebRequest webRequest)
+{
+	string signature = "";
+
+	// get header value string to be signed
+	string messageSignature = string.Format("{0}\n\n\n{1}\n\n\n\n\n\n\n\n\n{2}{3}",
+			  webRequest.Method,
+			  (webRequest.Method == "GET" || webRequest.Method == "HEAD" || webRequest.Method == "DELETE") ? string.Empty
+				: webRequest.ContentLength.ToString(),
+			  GetCanonicalizedHeaders(webRequest),
+			  GetCanonicalizedResource(webRequest.RequestUri, storageAccountName));
+
+	// convert it to a byte array.
+	byte[] SignatureBytes = Encoding.UTF8.GetBytes(messageSignature);
+
+	// create the HMACSHA256 version of the storage key.
+	HMACSHA256 SHA256 = new HMACSHA256(Convert.FromBase64String(storageAccountKey));
+
+	// compute the hash of the SignatureBytes and convert it to a base64 string...then use it to build header value
+	signature = string.Format("SharedKey {0}:{1}", storageAccountName, Convert.ToBase64String(SHA256.ComputeHash(SignatureBytes)));
+
+	return signature;
+}
+
+private string GetCanonicalizedHeaders(HttpWebRequest webRequest)
+{
+	var headers = from key in webRequest.Headers.AllKeys
+				  where key.StartsWith("x-ms-", StringComparison.OrdinalIgnoreCase)
+				  orderby key
+				  select new { Key = key.ToLowerInvariant(), Value = webRequest.Headers.GetValues(key) };
+
+	StringBuilder sb = new StringBuilder();
+
+	// Create the string in the expected standard or "canonicalized" format
+	foreach (var kvp in headers)
+	{
+		StringBuilder headerBuilder = new StringBuilder(kvp.Key);
+		char separator = ':';
+
+		// Get the value for each header, strip out \r\n if found, then append it with the key.
+		foreach (string headerValues in kvp.Value)
+		{
+			string trimmedValue = headerValues.TrimStart().Replace("\r\n", String.Empty);
+			headerBuilder.Append(separator).Append(trimmedValue);
+
+			// Set this to a comma; this will only be used 
+			//   if there are multiple values for one of the headers.
+			separator = ',';
+		}
+		sb.Append(headerBuilder.ToString()).Append("\n");
+	}
+	return sb.ToString();
+}
+
+private string GetCanonicalizedResource(Uri address, string storageAccountName)
+{
+	// The absolute path is "/" because for we're getting a list of containers.
+	StringBuilder sb = new StringBuilder("/").Append(storageAccountName).Append(address.AbsolutePath);
+
+	// Address.Query is the resource, such as "?comp=list".
+	// This ends up with a NameValueCollection with 1 entry having key=comp, value=list.
+	// It will have more entries if you have more query parameters.
+	NameValueCollection values = System.Web.HttpUtility.ParseQueryString(address.Query);
+
+	foreach (var item in values.AllKeys.OrderBy(k => k))
+	{
+		sb.Append('\n').Append(item).Append(':').Append(values[item]);
+	}
+
+	return sb.ToString();
+}
+]]></code>
+  </stage>
+  <stage stageid="77675fd6-b576-4efc-b854-3837fa93b212" name="Clean Up" type="SubSheetInfo">
+    <subsheetid>f28de15f-cbad-406e-a77c-008151521aa2</subsheetid>
+    <display x="-195" y="-105" w="150" h="90" />
+  </stage>
+  <stage stageid="ccbd73c4-1b4c-4ac2-9013-29b85f85888b" name="Start" type="Start">
+    <subsheetid>f28de15f-cbad-406e-a77c-008151521aa2</subsheetid>
+    <loginhibit />
+    <display x="15" y="-105" />
+    <onsuccess>d0028452-6901-4907-88b2-d134bec3cf9e</onsuccess>
+  </stage>
+  <stage stageid="d0028452-6901-4907-88b2-d134bec3cf9e" name="End" type="End">
+    <subsheetid>f28de15f-cbad-406e-a77c-008151521aa2</subsheetid>
+    <loginhibit />
+    <display x="15" y="90" />
+  </stage>
+  <stage stageid="72f73c5a-10d0-4ba7-b40a-7c5575e12bcb" name="Add Message" type="SubSheetInfo">
+    <subsheetid>11c02554-dac4-4810-8cda-3db68ce8d47b</subsheetid>
+    <narrative>Adds a message to the queue.</narrative>
+    <display x="-285" y="-105" w="330" h="90" />
+  </stage>
+  <stage stageid="68bd7cf8-fb91-49c7-b9ee-2a3a12c36d49" name="Note1" type="Note">
+    <subsheetid>f28de15f-cbad-406e-a77c-008151521aa2</subsheetid>
+    <narrative>Clean Up Page
+
+This is an optional page where you might choose to perform some finalisation (or "cleanup") tasks as your business object is closed down.
+
+The cleanup action will be called automatically immediately after closing your business object at the end of a business process.
+
+You will not be able to call this action from a business process, nor will it be called at any other time than before the disposal of the business object.</narrative>
+    <display x="-180" y="60" w="180" h="230" />
+  </stage>
+  <stage stageid="380859c2-7191-426e-92a6-dbf70ab374f1" name="Note2" type="Note">
+    <narrative>Initialise Page
+
+This is an optional page where you might choose to perform some initialisation tasks after your business object is loaded.
+
+The initialise action will be called automatically immediately after loading your business object.
+
+You will not be able to call this action from a business process, nor will it be called at any other time than after the creation of the object.</narrative>
+    <display x="-180" y="60" w="180" h="230" />
+  </stage>
+  <stage stageid="310fe34c-64aa-403c-aae5-7414029006d3" name="Message Content" type="Data">
+    <subsheetid>11c02554-dac4-4810-8cda-3db68ce8d47b</subsheetid>
+    <display x="-375" y="-15" w="120" h="30" />
+    <datatype>text</datatype>
+    <initialvalue />
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="cb2d3240-3071-4129-ae43-9d0423af5b21" name="Retrieve Next Message" type="SubSheetInfo">
+    <subsheetid>49f72b25-56d2-414c-a007-e2a3f340c57f</subsheetid>
+    <narrative>Gets the next available message from the queue and marks it as invisible in the queue for the specified number of seconds.</narrative>
+    <display x="-285" y="-105" w="330" h="90" />
+  </stage>
+  <stage stageid="26d9e967-fcbc-4696-9b61-d4ffc3b10779" name="Retrieve Messages" type="SubSheetInfo">
+    <subsheetid>09aa4686-20b5-4ca8-8518-afa3b1abb2d6</subsheetid>
+    <narrative>Gets the specified number of messages from the queue and marks the retrieved messages as invisible in the queue for the specified number of seconds.</narrative>
+    <display x="-285" y="-105" w="330" h="90" />
+  </stage>
+  <stage stageid="87d23f33-7c4f-4ed3-8764-9c10634a1847" name="Start" type="Start">
+    <subsheetid>09aa4686-20b5-4ca8-8518-afa3b1abb2d6</subsheetid>
+    <loginhibit />
+    <display x="-15" y="-135" />
+    <inputs>
+      <input type="number" name="Visibility Timeout Seconds" narrative="Total number of seconds to keep the queue messages retieved invisible to prevent them being processed by another worker. Default is 30." stage="Visibility Timeout Seconds" />
+      <input type="number" name="Number to Retrieve" narrative="The number of messages to retrieve. Can be a number between 1 and 32. Default is 32." stage="Number to Retrieve" />
+      <input type="text" name="Queue Name" narrative="The name of the Azure Queue" stage="Queue Name" />
+      <input type="password" name="Acces Key" narrative="The access key for the Azure storage account that the Azure Queue belongs to" stage="Acces Key" />
+      <input type="text" name="Storage Account Name" narrative="The name of the Azure storage account that the Azure Queue belongs to" stage="Storage Account Name" />
+    </inputs>
+    <onsuccess>cf8a0e43-6f30-4d90-8797-08fbca77331c</onsuccess>
+  </stage>
+  <stage stageid="37258156-4f00-4c46-8275-f9ae29da009f" name="End" type="End">
+    <subsheetid>09aa4686-20b5-4ca8-8518-afa3b1abb2d6</subsheetid>
+    <loginhibit />
+    <display x="-15" y="30" />
+    <outputs>
+      <output type="flag" name="Success" narrative="Flag to indicate success of this action" stage="Success" />
+      <output type="text" name="Result" narrative="If an error occrus, this output will contain text describing result of this action" stage="Result" />
+      <output type="collection" name="Messages" narrative="Messages retrieved from the queue" stage="Messages" />
+      <output type="text" name="HTTP Status Code" narrative="HTTP status code of the request made to the REST API endpoint" stage="HTTP Status Code" />
+      <output type="collection" name="Response Headers" narrative="Collection of the response headers from the request made to the REST API endpoint" stage="Response Headers" />
+      <output type="text" name="Response Content" narrative="The raw response from the request made to the REST API endpoint" stage="Response Content" />
+    </outputs>
+  </stage>
+  <stage stageid="cf8a0e43-6f30-4d90-8797-08fbca77331c" name="Retrieve Messages" type="Code">
+    <subsheetid>09aa4686-20b5-4ca8-8518-afa3b1abb2d6</subsheetid>
+    <loginhibit />
+    <display x="-15" y="-60" w="90" h="60" />
+    <inputs>
+      <input type="number" name="visibilityTimeoutSeconds" expr="[Visibility Timeout Seconds]" />
+      <input type="number" name="numberToRetrieve" expr="[Number to Retrieve]" />
+      <input type="text" name="queueName" expr="[Queue Name]" />
+      <input type="password" name="storageKey" expr="[Acces Key]" />
+      <input type="text" name="storageAccountName" expr="[Storage Account Name]" />
+    </inputs>
+    <outputs>
+      <output type="flag" name="success" stage="Success" />
+      <output type="text" name="result" stage="Result" />
+      <output type="collection" name="output" stage="Messages" />
+      <output type="collection" name="responseHeaders" stage="Response Headers" />
+      <output type="text" name="httpStatusCode" stage="HTTP Status Code" />
+      <output type="text" name="responseContent" stage="Response Content" />
+    </outputs>
+    <onsuccess>37258156-4f00-4c46-8275-f9ae29da009f</onsuccess>
+    <code><![CDATA[success = true;
+result = string.Empty;
+output = new DataTable();
+responseHeaders = new DataTable();
+httpStatusCode = string.Empty;
+responseContent = string.Empty;
+
+try
+{
+	// construct the uri and create the webRequest object
+	string queueServiceEndpoint = string.Format("https://{0}.queue.core.windows.net/{1}/messages?numofmessages={2}&visibilitytimeout={3}", storageAccountName, queueName, numberToRetrieve, visibilityTimeoutSeconds);
+	HttpWebRequest webRequest = GetWebRequest("GET", storageAccountName, storageKey, queueServiceEndpoint);
+
+	// get the response from the webRequest and process it
+	using (HttpWebResponse response = (HttpWebResponse)webRequest.GetResponse())
+	{
+		// grab the http status code
+		httpStatusCode = string.Format("{0} - {1}", ((int)response.StatusCode).ToString(), response.StatusCode.ToString());
+
+		// prep the output structure
+		output.Columns.AddRange(GetOutputDataColumns());
+
+		// prep the responseHeaders structure
+		responseHeaders.Columns.AddRange(GetResponseHeaderColumns());
+
+		// load up the responseHeaders
+		foreach (string k in response.Headers.Keys)
+		{
+			DataRow row = responseHeaders.NewRow();
+			row["Header"] = k;
+			row["Value"] = response.Headers.Get(k);
+			responseHeaders.Rows.Add(row);
+		}
+
+		using (var sr = new StreamReader(response.GetResponseStream()))
+		{
+			// read in the response stream
+			responseContent = sr.ReadToEnd();
+			success = true;
+
+			// then parse the response xml and use it to load up the output
+			XDocument xdoc = XDocument.Parse(responseContent);
+
+			DataRow row;
+			foreach (var xelement in xdoc.Descendants("QueueMessage"))
+			{
+				row = output.NewRow();
+				row["MessageId"] = xelement.Element("MessageId").Value;
+				row["MessageText"] = Encoding.UTF8.GetString(Convert.FromBase64String(xelement.Element("MessageText").Value));
+				row["PopReceipt"] = xelement.Element("PopReceipt").Value;
+				row["DequeueCount"] = xelement.Element("DequeueCount").Value;
+				row["InsertionTime"] = xelement.Element("InsertionTime").Value;
+				row["ExpirationTime"] = xelement.Element("ExpirationTime").Value;
+				row["TimeNextVisible"] = xelement.Element("TimeNextVisible").Value;
+				output.Rows.Add(row);
+			}
+		}
+	}
+}
+catch(Exception ex)
+{
+	success = false;
+	result = ex.Message;
+}]]></code>
+  </stage>
+  <stage stageid="ee4b41da-b9f1-4695-8b37-ec9471c3127f" name="Success" type="Data">
+    <subsheetid>09aa4686-20b5-4ca8-8518-afa3b1abb2d6</subsheetid>
+    <display x="-195" y="-15" w="120" h="30" />
+    <datatype>flag</datatype>
+    <initialvalue />
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="c793644d-cdef-4bfe-8d9b-e1faa7524cbe" name="Result" type="Data">
+    <subsheetid>09aa4686-20b5-4ca8-8518-afa3b1abb2d6</subsheetid>
+    <display x="-195" y="15" w="120" h="30" />
+    <datatype>text</datatype>
+    <initialvalue />
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="adb155eb-2455-4e63-a8d1-7d65c08ff00a" name="Number to Retrieve" type="Data">
+    <subsheetid>09aa4686-20b5-4ca8-8518-afa3b1abb2d6</subsheetid>
+    <narrative>The number of messages to retrieve. Can be a number between 1 and 32. Default is 32.</narrative>
+    <display x="-375" y="15" w="120" h="30" />
+    <datatype>number</datatype>
+    <initialvalue>32</initialvalue>
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="01bb0e87-e0e3-4c7d-b312-e78d8a2fbce8" name="Messages" type="Collection">
+    <subsheetid>09aa4686-20b5-4ca8-8518-afa3b1abb2d6</subsheetid>
+    <loginhibit />
+    <display x="-195" y="135" w="120" h="30" />
+    <datatype>collection</datatype>
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="e2c5745c-ce21-45e9-9ba9-ef1bce34b075" name="Input Data Items" type="Block">
+    <subsheetid>09aa4686-20b5-4ca8-8518-afa3b1abb2d6</subsheetid>
+    <loginhibit />
+    <display x="-450" y="-45" w="150" h="180" />
+    <font family="Segoe UI" size="10" style="Regular" color="FFCC00" />
+  </stage>
+  <stage stageid="bfe6cb60-f8e5-42fe-a082-48b4373edc7d" name="Output Data Items" type="Block">
+    <subsheetid>09aa4686-20b5-4ca8-8518-afa3b1abb2d6</subsheetid>
+    <loginhibit />
+    <display x="-270" y="-45" w="150" h="210" />
+    <font family="Segoe UI" size="10" style="Regular" color="800000" />
+  </stage>
+  <stage stageid="108f2dbe-86df-4ac9-a373-10182eca084c" name="Delete Message" type="SubSheetInfo">
+    <subsheetid>a8fafe28-6848-4797-89f4-268ef196c723</subsheetid>
+    <narrative>Deletes a message from the queue.</narrative>
+    <display x="-285" y="-105" w="330" h="90" />
+  </stage>
+  <stage stageid="cc437a6b-f9b7-4be5-b002-cf1a3df5218c" name="Input Data Items" type="Block">
+    <subsheetid>11c02554-dac4-4810-8cda-3db68ce8d47b</subsheetid>
+    <loginhibit />
+    <display x="-450" y="-45" w="150" h="180" />
+    <font family="Segoe UI" size="10" style="Regular" color="FFCC00" />
+  </stage>
+  <stage stageid="8cf2900f-d538-4ef3-adcc-b41bcdc23da4" name="Message Id" type="Data">
+    <subsheetid>a8fafe28-6848-4797-89f4-268ef196c723</subsheetid>
+    <display x="-375" y="-15" w="120" h="30" />
+    <datatype>text</datatype>
+    <initialvalue />
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="6fc41fae-209e-45cd-8d0a-aaa3f93f0cbd" name="Message Pop Receipt" type="Data">
+    <subsheetid>a8fafe28-6848-4797-89f4-268ef196c723</subsheetid>
+    <display x="-375" y="15" w="120" h="30" />
+    <datatype>text</datatype>
+    <initialvalue />
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="c46725e1-d0ee-4ec1-9490-7ae972c15e8e" name="Success" type="Data">
+    <subsheetid>a8fafe28-6848-4797-89f4-268ef196c723</subsheetid>
+    <display x="-195" y="-15" w="120" h="30" />
+    <datatype>flag</datatype>
+    <initialvalue />
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="38abada9-3123-46f1-8512-d2831897c516" name="Result" type="Data">
+    <subsheetid>a8fafe28-6848-4797-89f4-268ef196c723</subsheetid>
+    <display x="-195" y="15" w="120" h="30" />
+    <datatype>text</datatype>
+    <initialvalue />
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="7dc48f65-fec7-41f0-839e-2a28a822e099" name="Input Data Items" type="Block">
+    <subsheetid>a8fafe28-6848-4797-89f4-268ef196c723</subsheetid>
+    <loginhibit />
+    <display x="-450" y="-45" w="150" h="180" />
+    <font family="Segoe UI" size="10" style="Regular" color="FFCC00" />
+  </stage>
+  <stage stageid="bc8d79c3-9c38-4e22-84db-042be7471f8c" name="Output Data Items" type="Block">
+    <subsheetid>a8fafe28-6848-4797-89f4-268ef196c723</subsheetid>
+    <loginhibit />
+    <display x="-270" y="-45" w="150" h="180" />
+    <font family="Segoe UI" size="10" style="Regular" color="800000" />
+  </stage>
+  <stage stageid="17291b1c-d916-4529-9296-26a6ab37c3e5" name="Visibility Timeout Seconds" type="Data">
+    <subsheetid>09aa4686-20b5-4ca8-8518-afa3b1abb2d6</subsheetid>
+    <narrative>Total number of seconds to keep the queue messages retieved invisible to prevent them being processed by another worker. Default is 30.</narrative>
+    <display x="-375" y="-15" w="120" h="30" />
+    <datatype>number</datatype>
+    <initialvalue>30</initialvalue>
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="713f8652-8704-4368-89d0-c6adfd680c48" name="Response Headers" type="Collection">
+    <subsheetid>09aa4686-20b5-4ca8-8518-afa3b1abb2d6</subsheetid>
+    <display x="-195" y="75" w="120" h="30" />
+    <datatype>collection</datatype>
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="7f2091b5-c99e-40ed-ab26-026fb9424c26" name="HTTP Status Code" type="Data">
+    <subsheetid>09aa4686-20b5-4ca8-8518-afa3b1abb2d6</subsheetid>
+    <display x="-195" y="45" w="120" h="30" />
+    <datatype>text</datatype>
+    <initialvalue />
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="cf13216d-dc5e-4b9c-b20d-71dcbae49969" name="Response Content" type="Data">
+    <subsheetid>09aa4686-20b5-4ca8-8518-afa3b1abb2d6</subsheetid>
+    <display x="-195" y="105" w="120" h="30" />
+    <datatype>text</datatype>
+    <initialvalue />
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="ea38536b-a5d1-481b-a711-8bfad068a55a" name="Queue Name" type="Data">
+    <subsheetid>09aa4686-20b5-4ca8-8518-afa3b1abb2d6</subsheetid>
+    <display x="-375" y="105" w="120" h="30" />
+    <datatype>text</datatype>
+    <initialvalue />
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="2f20eaa7-5d24-4ed4-932e-5e627eae86ad" name="Acces Key" type="Data">
+    <subsheetid>09aa4686-20b5-4ca8-8518-afa3b1abb2d6</subsheetid>
+    <display x="-375" y="75" w="120" h="30" />
+    <datatype>password</datatype>
+    <initialvalueenc>
+    </initialvalueenc>
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="a8ea7a1d-3ac3-4cbb-8e73-6229ba5ea562" name="Storage Account Name" type="Data">
+    <subsheetid>09aa4686-20b5-4ca8-8518-afa3b1abb2d6</subsheetid>
+    <display x="-375" y="45" w="120" h="30" />
+    <datatype>text</datatype>
+    <initialvalue />
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="de51f31c-d3c2-4b56-9c72-dbaf21842e2a" name="Start" type="Start">
+    <subsheetid>49f72b25-56d2-414c-a007-e2a3f340c57f</subsheetid>
+    <loginhibit />
+    <display x="-15" y="-135" />
+    <inputs>
+      <input type="number" name="Visibility Timeout Seconds" narrative="Total number of seconds to keep the queue messages retieved invisible to prevent them being processed by another worker. Default is 30." stage="Visibility Timeout Seconds" />
+      <input type="text" name="Queue Name" narrative="The name of the Azure Queue" stage="Queue Name" />
+      <input type="password" name="Acces Key" narrative="The access key for the Azure storage account that the Azure Queue belongs to" stage="Acces Key" />
+      <input type="text" name="Storage Account Name" narrative="The name of the Azure storage account that the Azure Queue belongs to" stage="Storage Account Name" />
+    </inputs>
+    <onsuccess>ab36d51a-eaa3-4a76-9ba3-96ba75aa779e</onsuccess>
+  </stage>
+  <stage stageid="8f560cbe-0144-47b7-aa5e-119303fe4384" name="End" type="End">
+    <subsheetid>49f72b25-56d2-414c-a007-e2a3f340c57f</subsheetid>
+    <loginhibit />
+    <display x="-15" y="15" />
+    <outputs>
+      <output type="flag" name="Success" narrative="Flag to indicate success of this action" stage="Success" />
+      <output type="text" name="Result" narrative="If an error occrus, this output will contain text describing result of this action" stage="Result" />
+      <output type="collection" name="Messages" narrative="Messages retrieved from the queue" stage="Messages" />
+      <output type="text" name="HTTP Status Code" narrative="HTTP status code of the request made to the REST API endpoint" stage="HTTP Status Code" />
+      <output type="collection" name="Response Headers" narrative="Collection of the response headers from the request made to the REST API endpoint" stage="Response Headers" />
+      <output type="text" name="Response Content" narrative="The raw response from the request made to the REST API endpoint" stage="Response Content" />
+    </outputs>
+  </stage>
+  <stage stageid="c96d323c-70e5-48fe-a682-b8b9614f16ac" name="Success" type="Data">
+    <subsheetid>49f72b25-56d2-414c-a007-e2a3f340c57f</subsheetid>
+    <display x="-195" y="-15" w="120" h="30" />
+    <datatype>flag</datatype>
+    <initialvalue />
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="7bfd5bc8-55f2-44db-b155-cb57109d83b7" name="Result" type="Data">
+    <subsheetid>49f72b25-56d2-414c-a007-e2a3f340c57f</subsheetid>
+    <display x="-195" y="15" w="120" h="30" />
+    <datatype>text</datatype>
+    <initialvalue />
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="821cab9f-0322-479e-8d48-717f9ca058ea" name="Messages" type="Collection">
+    <subsheetid>49f72b25-56d2-414c-a007-e2a3f340c57f</subsheetid>
+    <loginhibit />
+    <display x="-195" y="135" w="120" h="30" />
+    <datatype>collection</datatype>
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="5898075f-0af4-404a-81cd-fc72211f92b9" name="Input Data Items" type="Block">
+    <subsheetid>49f72b25-56d2-414c-a007-e2a3f340c57f</subsheetid>
+    <loginhibit />
+    <display x="-450" y="-45" w="150" h="150" />
+    <font family="Segoe UI" size="10" style="Regular" color="FFCC00" />
+  </stage>
+  <stage stageid="3c1bd47a-4565-46b6-ad7f-17d598ef27e7" name="Output Data Items" type="Block">
+    <subsheetid>49f72b25-56d2-414c-a007-e2a3f340c57f</subsheetid>
+    <loginhibit />
+    <display x="-270" y="-45" w="150" h="210" />
+    <font family="Segoe UI" size="10" style="Regular" color="800000" />
+  </stage>
+  <stage stageid="434529f9-68f5-40c6-a3a8-13a2519d46d0" name="Visibility Timeout Seconds" type="Data">
+    <subsheetid>49f72b25-56d2-414c-a007-e2a3f340c57f</subsheetid>
+    <narrative>Total number of seconds to keep the queue messages retieved invisible to prevent them being processed by another worker. Default is 30.</narrative>
+    <display x="-375" y="-15" w="120" h="30" />
+    <datatype>number</datatype>
+    <initialvalue>30</initialvalue>
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="860f78d2-dcae-411f-94a3-8d601c09822b" name="Response Headers" type="Collection">
+    <subsheetid>49f72b25-56d2-414c-a007-e2a3f340c57f</subsheetid>
+    <display x="-195" y="75" w="120" h="30" />
+    <datatype>collection</datatype>
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="855e66b2-2b9c-44c9-9680-3f8514b70534" name="HTTP Status Code" type="Data">
+    <subsheetid>49f72b25-56d2-414c-a007-e2a3f340c57f</subsheetid>
+    <display x="-195" y="45" w="120" h="30" />
+    <datatype>text</datatype>
+    <initialvalue />
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="335fcfea-55c9-40ce-89b9-9ed7ac747cce" name="Response Content" type="Data">
+    <subsheetid>49f72b25-56d2-414c-a007-e2a3f340c57f</subsheetid>
+    <display x="-195" y="105" w="120" h="30" />
+    <datatype>text</datatype>
+    <initialvalue />
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="55977536-e54c-49ca-9b15-285d39063c08" name="Queue Name" type="Data">
+    <subsheetid>49f72b25-56d2-414c-a007-e2a3f340c57f</subsheetid>
+    <display x="-375" y="75" w="120" h="30" />
+    <datatype>text</datatype>
+    <initialvalue />
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="ccadca2f-3e6d-4229-b36a-b88fe4e3d193" name="Acces Key" type="Data">
+    <subsheetid>49f72b25-56d2-414c-a007-e2a3f340c57f</subsheetid>
+    <display x="-375" y="45" w="120" h="30" />
+    <datatype>password</datatype>
+    <initialvalueenc>
+    </initialvalueenc>
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="57f481ae-e1e3-463e-b33a-3004a241b7ed" name="Storage Account Name" type="Data">
+    <subsheetid>49f72b25-56d2-414c-a007-e2a3f340c57f</subsheetid>
+    <display x="-375" y="15" w="120" h="30" />
+    <datatype>text</datatype>
+    <initialvalue />
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="ab36d51a-eaa3-4a76-9ba3-96ba75aa779e" name="Retrieve Messages" type="SubSheet">
+    <subsheetid>49f72b25-56d2-414c-a007-e2a3f340c57f</subsheetid>
+    <loginhibit />
+    <display x="-15" y="-60" w="90" h="60" />
+    <inputs>
+      <input type="number" name="Visibility Timeout Seconds" friendlyname="Visibility Timeout Seconds" narrative="Total number of seconds to keep the queue messages retieved invisible to prevent them being processed by another worker. Default is 30." expr="[Visibility Timeout Seconds]" />
+      <input type="number" name="Number to Retrieve" friendlyname="Number to Retrieve" narrative="The number of messages to retrieve. Can be a number between 1 and 32. Default is 32." expr="1" />
+      <input type="text" name="Queue Name" friendlyname="Queue Name" narrative="The name of the Azure Queue" expr="[Queue Name]" />
+      <input type="password" name="Acces Key" friendlyname="Acces Key" narrative="The access key for the Azure storage account that the Azure Queue belongs to" expr="[Acces Key]" />
+      <input type="text" name="Storage Account Name" friendlyname="Storage Account Name" narrative="The name of the Azure storage account that the Azure Queue belongs to" expr="[Storage Account Name]" />
+    </inputs>
+    <outputs>
+      <output type="flag" name="Success" friendlyname="Success" narrative="Flag to indicate success of this action" stage="Success" />
+      <output type="text" name="Result" friendlyname="Result" narrative="If an error occrus, this output will contain text describing result of this action" stage="Result" />
+      <output type="collection" name="Messages" friendlyname="Messages" narrative="Messages retrieved from the queue" stage="Messages" />
+      <output type="text" name="HTTP Status Code" friendlyname="HTTP Status Code" narrative="HTTP status code of the request made to the REST API endpoint" stage="HTTP Status Code" />
+      <output type="collection" name="Response Headers" friendlyname="Response Headers" narrative="Collection of the response headers from the request made to the REST API endpoint" stage="Response Headers" />
+      <output type="text" name="Response Content" friendlyname="Response Content" narrative="The raw response from the request made to the REST API endpoint" stage="Response Content" />
+    </outputs>
+    <onsuccess>8f560cbe-0144-47b7-aa5e-119303fe4384</onsuccess>
+    <processid>09aa4686-20b5-4ca8-8518-afa3b1abb2d6</processid>
+  </stage>
+  <stage stageid="a79e64e7-2e5c-4a40-b7ad-ad3511830d00" name="Start" type="Start">
+    <subsheetid>a8fafe28-6848-4797-89f4-268ef196c723</subsheetid>
+    <loginhibit />
+    <display x="-15" y="-135" />
+    <inputs>
+      <input type="text" name="Queue Name" narrative="The name of the Azure Queue" stage="Queue Name" />
+      <input type="password" name="Acces Key" narrative="The access key for the Azure storage account that the Azure Queue belongs to" stage="Acces Key" />
+      <input type="text" name="Storage Account Name" narrative="The name of the Azure storage account that the Azure Queue belongs to" stage="Storage Account Name" />
+      <input type="text" name="Message Id" stage="Message Id" />
+      <input type="text" name="Message Pop Receipt" stage="Message Pop Receipt" />
+    </inputs>
+    <onsuccess>41fb8f8b-ef0c-4490-b3db-454307d1c51d</onsuccess>
+  </stage>
+  <stage stageid="2c8a1b75-07a1-4ea5-aab3-5d82f48b92f7" name="Queue Name" type="Data">
+    <subsheetid>a8fafe28-6848-4797-89f4-268ef196c723</subsheetid>
+    <display x="-375" y="105" w="120" h="30" />
+    <datatype>text</datatype>
+    <initialvalue />
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="cbe23111-6999-47df-ab16-e0c9feccf6f8" name="Acces Key" type="Data">
+    <subsheetid>a8fafe28-6848-4797-89f4-268ef196c723</subsheetid>
+    <display x="-375" y="75" w="120" h="30" />
+    <datatype>password</datatype>
+    <initialvalueenc>
+    </initialvalueenc>
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="3f9e5a09-7b9a-4bba-91fc-08ad167da2d9" name="Storage Account Name" type="Data">
+    <subsheetid>a8fafe28-6848-4797-89f4-268ef196c723</subsheetid>
+    <display x="-375" y="45" w="120" h="30" />
+    <datatype>text</datatype>
+    <initialvalue />
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="41fb8f8b-ef0c-4490-b3db-454307d1c51d" name="Delete Message" type="Code">
+    <subsheetid>a8fafe28-6848-4797-89f4-268ef196c723</subsheetid>
+    <loginhibit />
+    <display x="-15" y="-60" w="90" h="60" />
+    <inputs>
+      <input type="text" name="messageId" expr="[Message Id]" />
+      <input type="text" name="popReceipt" expr="[Message Pop Receipt]" />
+      <input type="text" name="queueName" expr="[Queue Name]" />
+      <input type="password" name="storageKey" expr="[Acces Key]" />
+      <input type="text" name="storageAccountName" expr="[Storage Account Name]" />
+    </inputs>
+    <outputs>
+      <output type="flag" name="success" stage="Success" />
+      <output type="text" name="result" stage="Result" />
+      <output type="collection" name="responseHeaders" stage="Response Headers" />
+      <output type="text" name="httpStatusCode" stage="HTTP Status Code" />
+      <output type="text" name="responseContent" stage="Response Content" />
+    </outputs>
+    <onsuccess>75dc6004-78cc-4bb5-96d0-dc390aedf4ad</onsuccess>
+    <code><![CDATA[success = true;
+result = string.Empty;
+responseHeaders = new DataTable();
+httpStatusCode = string.Empty;
+responseContent = string.Empty;
+
+try
+{
+	// construct the uri and create the webRequest object
+	string queueServiceEndpoint = string.Format("https://{0}.queue.core.windows.net/{1}/messages/{2}?popreceipt={3}", storageAccountName, queueName, messageId, popReceipt);
+	HttpWebRequest webRequest = GetWebRequest("DELETE", storageAccountName, storageKey, queueServiceEndpoint);
+
+	// get the response from the webRequest and process it
+	using (HttpWebResponse response = (HttpWebResponse)webRequest.GetResponse())
+	{
+		// grab the http status code
+		httpStatusCode = string.Format("{0} - {1}", ((int)response.StatusCode).ToString(), response.StatusCode.ToString());
+
+		// prep the responseHeaders structure
+		responseHeaders.Columns.AddRange(GetResponseHeaderColumns());
+
+		// load up the responseHeaders
+		foreach (string k in response.Headers.Keys)
+		{
+			DataRow row = responseHeaders.NewRow();
+			row["Header"] = k;
+			row["Value"] = response.Headers.Get(k);
+			responseHeaders.Rows.Add(row);
+		}
+
+		using (var sr = new StreamReader(response.GetResponseStream()))
+		{
+			// read in the response stream
+			responseContent = sr.ReadToEnd();
+			success = true;
+		}
+	}
+}
+catch(Exception ex)
+{
+	success = false;
+	result = ex.Message;
+}]]></code>
+  </stage>
+  <stage stageid="856c148b-d186-4bdc-8129-feab0896f2c9" name="Response Headers" type="Collection">
+    <subsheetid>a8fafe28-6848-4797-89f4-268ef196c723</subsheetid>
+    <display x="-195" y="75" w="120" h="30" />
+    <datatype>collection</datatype>
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="be02d1a8-7265-49ca-9f6f-9c31b43f2c71" name="HTTP Status Code" type="Data">
+    <subsheetid>a8fafe28-6848-4797-89f4-268ef196c723</subsheetid>
+    <display x="-195" y="45" w="120" h="30" />
+    <datatype>text</datatype>
+    <initialvalue />
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="66f1c8a6-bf82-4978-82f2-f11c58390315" name="Response Content" type="Data">
+    <subsheetid>a8fafe28-6848-4797-89f4-268ef196c723</subsheetid>
+    <display x="-195" y="105" w="120" h="30" />
+    <datatype>text</datatype>
+    <initialvalue />
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="75dc6004-78cc-4bb5-96d0-dc390aedf4ad" name="End" type="End">
+    <subsheetid>a8fafe28-6848-4797-89f4-268ef196c723</subsheetid>
+    <loginhibit />
+    <display x="-15" y="15" />
+    <outputs>
+      <output type="flag" name="Success" narrative="Flag to indicate success of this action" stage="Success" />
+      <output type="text" name="Result" narrative="If an error occrus, this output will contain text describing result of this action" stage="Result" />
+      <output type="text" name="HTTP Status Code" narrative="HTTP status code of the request made to the REST API endpoint" stage="HTTP Status Code" />
+      <output type="collection" name="Response Headers" narrative="Collection of the response headers from the request made to the REST API endpoint" stage="Response Headers" />
+      <output type="text" name="Response Content" narrative="The raw response from the request made to the REST API endpoint" stage="Response Content" />
+    </outputs>
+  </stage>
+  <stage stageid="ac1c981b-b09c-44a1-8426-6501e75dc4fb" name="Start" type="Start">
+    <subsheetid>11c02554-dac4-4810-8cda-3db68ce8d47b</subsheetid>
+    <loginhibit />
+    <display x="0" y="-135" />
+    <inputs>
+      <input type="number" name="Visibility Timeout Seconds" narrative="Total number of seconds to keep the queue messages retieved invisible to prevent them being processed by another worker. Default is 30." stage="Visibility Timeout Seconds" />
+      <input type="text" name="Message Content" narrative="The content of the message" stage="Message Content" />
+      <input type="text" name="Queue Name" narrative="The name of the Azure Queue" stage="Queue Name" />
+      <input type="password" name="Acces Key" narrative="The access key for the Azure storage account that the Azure Queue belongs to" stage="Acces Key" />
+      <input type="text" name="Storage Account Name" narrative="The name of the Azure storage account that the Azure Queue belongs to" stage="Storage Account Name" />
+    </inputs>
+    <onsuccess>166975a7-9be8-41e4-a3d0-589fbceaef5d</onsuccess>
+  </stage>
+  <stage stageid="86218387-226e-49aa-ac71-1bb20e8a66e2" name="Queue Name" type="Data">
+    <subsheetid>11c02554-dac4-4810-8cda-3db68ce8d47b</subsheetid>
+    <display x="-375" y="105" w="120" h="30" />
+    <datatype>text</datatype>
+    <initialvalue />
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="d1f9f86f-a312-4e55-9475-e6155f4a90ee" name="Acces Key" type="Data">
+    <subsheetid>11c02554-dac4-4810-8cda-3db68ce8d47b</subsheetid>
+    <display x="-375" y="75" w="120" h="30" />
+    <datatype>password</datatype>
+    <initialvalueenc>
+    </initialvalueenc>
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="5d80d386-8545-44e9-b34c-e2e32f55125f" name="Storage Account Name" type="Data">
+    <subsheetid>11c02554-dac4-4810-8cda-3db68ce8d47b</subsheetid>
+    <display x="-375" y="45" w="120" h="30" />
+    <datatype>text</datatype>
+    <initialvalue />
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="4b13f8b7-3cbb-4f68-a018-9a918b530d97" name="Visibility Timeout Seconds" type="Data">
+    <subsheetid>11c02554-dac4-4810-8cda-3db68ce8d47b</subsheetid>
+    <display x="-375" y="15" w="120" h="30" />
+    <datatype>number</datatype>
+    <initialvalue>30</initialvalue>
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="99672200-1d23-4d24-9cac-19b65119aa1e" name="Success" type="Data">
+    <subsheetid>11c02554-dac4-4810-8cda-3db68ce8d47b</subsheetid>
+    <display x="-195" y="-15" w="120" h="30" />
+    <datatype>flag</datatype>
+    <initialvalue />
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="44758c54-72ef-4ba1-9a6c-cccee4483016" name="Result" type="Data">
+    <subsheetid>11c02554-dac4-4810-8cda-3db68ce8d47b</subsheetid>
+    <display x="-195" y="15" w="120" h="30" />
+    <datatype>text</datatype>
+    <initialvalue />
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="a62934d3-7032-4d4e-9698-5d79ead11daf" name="Messages" type="Collection">
+    <subsheetid>11c02554-dac4-4810-8cda-3db68ce8d47b</subsheetid>
+    <loginhibit />
+    <display x="-195" y="135" w="120" h="30" />
+    <datatype>collection</datatype>
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="670e737d-9928-4a14-bdbf-ca6444cf9689" name="Output Data Items" type="Block">
+    <subsheetid>11c02554-dac4-4810-8cda-3db68ce8d47b</subsheetid>
+    <loginhibit />
+    <display x="-270" y="-45" w="150" h="210" />
+    <font family="Segoe UI" size="10" style="Regular" color="800000" />
+  </stage>
+  <stage stageid="3f015b3f-210e-438a-93fa-6eba4a393e18" name="Response Headers" type="Collection">
+    <subsheetid>11c02554-dac4-4810-8cda-3db68ce8d47b</subsheetid>
+    <display x="-195" y="75" w="120" h="30" />
+    <datatype>collection</datatype>
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="222aba09-adce-4153-91a4-a1318857f236" name="HTTP Status Code" type="Data">
+    <subsheetid>11c02554-dac4-4810-8cda-3db68ce8d47b</subsheetid>
+    <display x="-195" y="45" w="120" h="30" />
+    <datatype>text</datatype>
+    <initialvalue />
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="868d0660-06fd-4f59-96df-28a96be6080a" name="Response Content" type="Data">
+    <subsheetid>11c02554-dac4-4810-8cda-3db68ce8d47b</subsheetid>
+    <display x="-195" y="105" w="120" h="30" />
+    <datatype>text</datatype>
+    <initialvalue />
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="82f189f1-9662-4511-9cb6-dbe615d975f3" name="End" type="End">
+    <subsheetid>11c02554-dac4-4810-8cda-3db68ce8d47b</subsheetid>
+    <loginhibit />
+    <display x="0" y="15" />
+    <outputs>
+      <output type="flag" name="Success" narrative="Flag to indicate success of this action" stage="Success" />
+      <output type="text" name="Result" narrative="If an error occrus, this output will contain text describing result of this action" stage="Result" />
+      <output type="collection" name="Messages" narrative="Messages retrieved from the queue" stage="Messages" />
+      <output type="text" name="HTTP Status Code" narrative="HTTP status code of the request made to the REST API endpoint" stage="HTTP Status Code" />
+      <output type="collection" name="Response Headers" narrative="Collection of the response headers from the request made to the REST API endpoint" stage="Response Headers" />
+      <output type="text" name="Response Content" narrative="The raw response from the request made to the REST API endpoint" stage="Response Content" />
+    </outputs>
+  </stage>
+  <stage stageid="166975a7-9be8-41e4-a3d0-589fbceaef5d" name="Add Message" type="Code">
+    <subsheetid>11c02554-dac4-4810-8cda-3db68ce8d47b</subsheetid>
+    <loginhibit />
+    <display x="0" y="-60" w="90" h="60" />
+    <inputs>
+      <input type="number" name="visibilityTimeoutSeconds" expr="[Visibility Timeout Seconds]" />
+      <input type="text" name="messageContent" expr="[Message Content]" />
+      <input type="text" name="queueName" expr="[Queue Name]" />
+      <input type="password" name="storageKey" expr="[Acces Key]" />
+      <input type="text" name="storageAccountName" expr="[Storage Account Name]" />
+    </inputs>
+    <outputs>
+      <output type="flag" name="success" stage="Success" />
+      <output type="text" name="result" stage="Result" />
+      <output type="collection" name="output" stage="Messages" />
+      <output type="collection" name="responseHeaders" stage="Response Headers" />
+      <output type="text" name="httpStatusCode" stage="HTTP Status Code" />
+      <output type="text" name="responseContent" stage="Response Content" />
+    </outputs>
+    <onsuccess>82f189f1-9662-4511-9cb6-dbe615d975f3</onsuccess>
+    <code><![CDATA[success = true;
+result = string.Empty;
+output = new DataTable();
+responseHeaders = new DataTable();
+httpStatusCode = string.Empty;
+responseContent = string.Empty;
+
+try
+{
+	// construct the uri and create the webRequest object
+	string queueServiceEndpoint = string.Format("https://{0}.queue.core.windows.net/{1}/messages?visibilitytimeout={2}", storageAccountName, queueName, visibilityTimeoutSeconds);
+	HttpWebRequest webRequest = GetWebRequest("POST", storageAccountName, storageKey, queueServiceEndpoint);
+
+	// wrap the message content in the expected xml structure, convert it to byte[], and set content length
+	// - per Microsoft (https://docs.microsoft.com/en-us/rest/api/storageservices/put-message)
+	//   "A message must be in a format that can be included in an XML request with UTF-8 encoding. To include markup in the message, 
+	//    the contents of the message must either be XML-escaped or Base64-encode. Any XML markup in the message that is not escaped 
+	//    or encoded will be removed before the message is added to the queue."
+	string postData = string.Format("<QueueMessage><MessageText>{0}</MessageText></QueueMessage>", Convert.ToBase64String(Encoding.UTF8.GetBytes(messageContent)));
+	byte[] bytes = Encoding.UTF8.GetBytes(postData);
+	webRequest.ContentLength = bytes.Length;
+	
+	// get the request stream and write the post data to it
+	Stream dataStream = webRequest.GetRequestStream();
+	dataStream.Write(bytes, 0, bytes.Length);
+	dataStream.Close();
+
+	// get the response from the webRequest and process it
+	using (HttpWebResponse response = (HttpWebResponse)webRequest.GetResponse())
+	{
+		// grab the http status code
+		httpStatusCode = string.Format("{0} - {1}", ((int)response.StatusCode).ToString(), response.StatusCode.ToString());
+
+		// prep the output structure
+		output.Columns.AddRange(GetOutputDataColumns());
+
+		// prep the responseHeaders structure
+		responseHeaders.Columns.AddRange(GetResponseHeaderColumns());
+
+		// load up the responseHeaders
+		foreach (string k in response.Headers.Keys)
+		{
+			DataRow row = responseHeaders.NewRow();
+			row["Header"] = k;
+			row["Value"] = response.Headers.Get(k);
+			responseHeaders.Rows.Add(row);
+		}
+
+		using (var sr = new StreamReader(response.GetResponseStream()))
+		{
+			// read in the response stream
+			responseContent = sr.ReadToEnd();
+			success = true;
+
+			// then parse the response xml and use it to load up the output
+			XDocument xdoc = XDocument.Parse(responseContent);
+
+			DataRow row;
+			foreach (var xelement in xdoc.Descendants("QueueMessage"))
+			{
+				row = output.NewRow();
+				row["MessageId"] = xelement.Element("MessageId").Value;
+				row["MessageText"] = messageContent;
+				row["PopReceipt"] = xelement.Element("PopReceipt").Value;
+				row["DequeueCount"] = "0";
+				row["InsertionTime"] = xelement.Element("InsertionTime").Value;
+				row["ExpirationTime"] = xelement.Element("ExpirationTime").Value;
+				row["TimeNextVisible"] = xelement.Element("TimeNextVisible").Value;
+				output.Rows.Add(row);
+			}
+		}
+	}
+}
+catch(Exception ex)
+{
+	success = false;
+	result = ex.Message;
+}]]></code>
+  </stage>
+</process>
