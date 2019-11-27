@@ -12,3 +12,8 @@ The VBO includes the following endpoint actions:
 * **Update Message** - Updates a message in the queue.
 * **Delete Message** - Deletes a message from the queue.
 * **Delete All Messages** - Deletes all messages from the queue.
+
+## Setup
+To use this VBO, download or clone this repository. Then import the [bprelease] file into your Blue Prism environment, update the password in the imported credential with your Azure Storage access key, and obtain your Azure Storage account name and Azure Service Queue name for use within the included sample process.
+
+For more information on the setup and usage of this VBO, please refer to this repository's Wiki.
