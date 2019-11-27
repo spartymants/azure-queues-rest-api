@@ -14,6 +14,6 @@ The VBO includes the following endpoint actions:
 * **Delete All Messages** - Deletes all messages from the queue.
 
 ## Setup
-To use this VBO, download or clone this repository. Then import the [bprelease] file into your Blue Prism environment, update the password in the imported credential with your Azure Storage access key, and obtain your Azure Storage account name and Azure Service Queue name for use within the included sample process.
+To use this VBO, download or clone this repository. Then import the [Azure Queues REST API.bprelease](https://github.com/blue-prism/azure-queues-rest-api/blob/master/Azure%20Queues%20REST%20API.bprelease) file into your Blue Prism environment, update the password in the imported credential with your Azure Storage access key, and obtain your Azure Storage account name and Azure Service Queue name for use within the included sample process.
 
 For more information on the setup and usage of this VBO, please refer to this repository's Wiki.
