@@ -1,7 +1,7 @@
-﻿<process name="Blueprism - Azure Queues REST API Sample" version="1.0" bpversion="6.6.0.15260" narrative="" byrefcollection="true" preferredid="5bc440a8-5066-4269-8ab7-065823ad2a4d">
+﻿<process name="Blueprism - Azure Queues REST API Sample" version="1.0" bpversion="6.7.0.20116" narrative="" byrefcollection="true" preferredid="5bc440a8-5066-4269-8ab7-065823ad2a4d">
   <view>
-    <camerax>0</camerax>
-    <cameray>113</cameray>
+    <camerax>-98</camerax>
+    <cameray>-15</cameray>
     <zoom version="2">1.25</zoom>
   </view>
   <preconditions />
@@ -843,5 +843,19 @@ An Exception will occur if access to the credentials is not allowed, based on th
   <stage stageid="b78cd9f1-bb21-4020-9b96-48b016cf7a25" name="Global Data Items" type="Block">
     <display x="-270" y="180" w="150" h="120" />
     <font family="Segoe UI" size="10" style="Regular" color="00FFFF" />
+  </stage>
+  <stage stageid="0cab05e7-4e72-4926-bc6b-de51eedd3854" name="Blue Prism Limited Copyright Note" type="Note">
+    <loginhibit />
+    <narrative>'The MIT License'
+
+© 2019 - 2020 Blue Prism Limited
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE</narrative>
+    <display x="-525" y="-75" w="450" h="210" />
+    <font family="Segoe UI" size="10" style="Bold" color="000000" />
   </stage>
 </process>
