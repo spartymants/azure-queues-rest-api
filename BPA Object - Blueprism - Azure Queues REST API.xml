@@ -814,7 +814,7 @@ responseContent = string.Empty;
 try
 {
 	// construct the uri and create the webRequest object
-	string queueServiceEndpoint = string.Format("https://{0}.queue.core.windows.net/{1}/messages/{2}?popreceipt={3}", storageAccountName, queueName, messageId, popReceipt);
+	string queueServiceEndpoint = string.Format("https://{0}.queue.core.windows.net/{1}/messages?popreceipt={2}", storageAccountName, queueName, popReceipt);
 	HttpWebRequest webRequest = GetWebRequest("DELETE", storageAccountName, storageKey, queueServiceEndpoint);
 
 	// get the response from the webRequest and process it
